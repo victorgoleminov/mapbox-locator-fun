@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import 'mapbox-gl/dist/mapbox-css';
 import { useToast } from '@/components/ui/use-toast';
 import LocationCard from './LocationCard';
 
 const Map = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const mapInstance = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
   const { toast } = useToast();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -18,15 +18,17 @@ const Map = () => {
     // Initialize map
     mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbHNlOHNpYmswMDJqMmtvNWR4NWJyYnB5In0.qXhv1VkOiHdLRzlJ8Qh8dw';
     
-    map.current = new mapboxgl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
       zoom: 15,
       center: [0, 0],
     });
 
+    mapInstance.current = map;
+
     // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
     // Get user's location
     if ('geolocation' in navigator) {
@@ -35,8 +37,8 @@ const Map = () => {
           const { latitude, longitude } = position.coords;
           setLocation({ lat: latitude, lng: longitude });
           
-          if (map.current) {
-            map.current.flyTo({
+          if (mapInstance.current) {
+            mapInstance.current.flyTo({
               center: [longitude, latitude],
               zoom: 15,
               essential: true
@@ -51,9 +53,12 @@ const Map = () => {
             `;
 
             // Add marker to map
+            if (marker.current) {
+              marker.current.remove();
+            }
             marker.current = new mapboxgl.Marker(el)
               .setLngLat([longitude, latitude])
-              .addTo(map.current);
+              .addTo(mapInstance.current);
           }
           setLoading(false);
         },
@@ -69,7 +74,12 @@ const Map = () => {
     }
 
     return () => {
-      map.current?.remove();
+      if (marker.current) {
+        marker.current.remove();
+      }
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+      }
     };
   }, [toast]);
 
