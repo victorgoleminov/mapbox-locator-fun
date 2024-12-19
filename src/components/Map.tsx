@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { Share2 } from 'lucide-react';
 import LocationCard from './LocationCard';
 
 interface UserLocation {
@@ -19,6 +21,8 @@ const Map = () => {
   const [userLocations, setUserLocations] = useState<UserLocation[]>([]);
   const [myLocation, setMyLocation] = useState<UserLocation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSharing, setIsSharing] = useState(false);
+  const watchId = useRef<number | null>(null);
 
   // Generate a random user ID
   const userId = useRef<string>(Math.random().toString(36).substring(7));
@@ -55,6 +59,50 @@ const Map = () => {
     updateUserLocation(location);
   };
 
+  const startSharingLocation = () => {
+    if (!('geolocation' in navigator)) {
+      toast({
+        title: "Error",
+        description: "Geolocation is not supported by your browser",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSharing(true);
+    watchId.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        broadcastLocation(latitude, longitude);
+      },
+      (error) => {
+        toast({
+          title: "Location Error",
+          description: error.message,
+          variant: "destructive"
+        });
+        setIsSharing(false);
+      }
+    );
+
+    toast({
+      title: "Location Sharing",
+      description: "You are now sharing your location",
+    });
+  };
+
+  const stopSharingLocation = () => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setIsSharing(false);
+    toast({
+      title: "Location Sharing Stopped",
+      description: "You have stopped sharing your location",
+    });
+  };
+
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -69,14 +117,13 @@ const Map = () => {
     // Add zoom controls
     mapInstance.current.zoomControl.setPosition('bottomright');
 
-    // Get user's location
+    // Get initial location
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           if (mapInstance.current) {
             mapInstance.current.setView([latitude, longitude], 15);
-            broadcastLocation(latitude, longitude);
           }
           setLoading(false);
         },
@@ -89,24 +136,12 @@ const Map = () => {
           setLoading(false);
         }
       );
-
-      // Watch for location updates
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          broadcastLocation(latitude, longitude);
-        },
-        (error) => {
-          console.error('Error watching position:', error);
-        }
-      );
-
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
     }
 
     return () => {
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
       Object.values(markers.current).forEach(marker => marker.remove());
       if (mapInstance.current) {
         mapInstance.current.remove();
@@ -138,6 +173,16 @@ const Map = () => {
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
+      <div className="absolute top-4 right-4 z-[1000]">
+        <Button
+          onClick={isSharing ? stopSharingLocation : startSharingLocation}
+          variant={isSharing ? "destructive" : "default"}
+          className="flex items-center gap-2"
+        >
+          <Share2 className="h-4 w-4" />
+          {isSharing ? "Stop Sharing" : "Share My Location"}
+        </Button>
+      </div>
       {myLocation && (
         <LocationCard 
           latitude={myLocation.lat} 
