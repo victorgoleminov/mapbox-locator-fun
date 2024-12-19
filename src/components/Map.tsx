@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useToast } from '@/components/ui/use-toast';
 import LocationCard from './LocationCard';
 
 const Map = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
+  const mapInstance = useRef<L.Map | null>(null);
+  const marker = useRef<L.Marker | null>(null);
   const { toast } = useToast();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,19 +16,15 @@ const Map = () => {
     if (!mapContainer.current) return;
 
     // Initialize map
-    mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbHNlOHNpYmswMDJqMmtvNWR4NWJyYnB5In0.qXhv1VkOiHdLRzlJ8Qh8dw';
+    mapInstance.current = L.map(mapContainer.current).setView([0, 0], 2);
     
-    const map = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      zoom: 15,
-      center: [0, 0],
-    });
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(mapInstance.current);
 
-    mapInstance.current = map;
-
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+    // Add zoom controls
+    mapInstance.current.zoomControl.setPosition('bottomright');
 
     // Get user's location
     if ('geolocation' in navigator) {
@@ -38,26 +34,26 @@ const Map = () => {
           setLocation({ lat: latitude, lng: longitude });
           
           if (mapInstance.current) {
-            mapInstance.current.flyTo({
-              center: [longitude, latitude],
-              zoom: 15,
-              essential: true
-            });
+            mapInstance.current.setView([latitude, longitude], 15);
 
-            // Create a custom marker element
-            const el = document.createElement('div');
-            el.className = 'relative';
-            el.innerHTML = `
-              <div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></div>
-              <div class="absolute -inset-2 bg-blue-500/20 rounded-full animate-ping"></div>
-            `;
+            // Create a custom icon
+            const pulsingIcon = L.divIcon({
+              className: 'custom-icon',
+              html: `
+                <div class="relative">
+                  <div class="w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></div>
+                  <div class="absolute -inset-2 bg-blue-500/20 rounded-full animate-ping"></div>
+                </div>
+              `,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10]
+            });
 
             // Add marker to map
             if (marker.current) {
               marker.current.remove();
             }
-            marker.current = new mapboxgl.Marker(el)
-              .setLngLat([longitude, latitude])
+            marker.current = L.marker([latitude, longitude], { icon: pulsingIcon })
               .addTo(mapInstance.current);
           }
           setLoading(false);
