@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Share2 } from 'lucide-react';
 import LocationCard from './LocationCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/App';
 import { UserLocationsList } from './UserLocationsList';
+import { useLocationTracking } from '@/hooks/useLocationTracking';
+import { useToast } from '@/components/ui/use-toast';
 
 interface UserLocation {
   id: string;
@@ -24,9 +25,11 @@ export const Map = () => {
   const [userLocations, setUserLocations] = useState<UserLocation[]>([]);
   const [myLocation, setMyLocation] = useState<UserLocation | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isSharing, setIsSharing] = useState(false);
-  const watchId = useRef<number | null>(null);
   const session = useSession();
+  
+  const { isSharing, startSharingLocation, stopSharingLocation } = useLocationTracking({
+    userId: session?.user?.id
+  });
 
   const createPulsingIcon = () => {
     return L.divIcon({
@@ -39,73 +42,6 @@ export const Map = () => {
       `,
       iconSize: [20, 20],
       iconAnchor: [10, 10]
-    });
-  };
-
-  const updateUserLocation = async (lat: number, lng: number) => {
-    if (!session?.user?.id) return;
-
-    try {
-      const { error } = await supabase
-        .from('user_locations')
-        .upsert({
-          user_id: session.user.id,
-          location: `POINT(${lng} ${lat})`,
-          last_updated: new Date().toISOString()
-        });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating location:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update location",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const startSharingLocation = () => {
-    if (!('geolocation' in navigator)) {
-      toast({
-        title: "Error",
-        description: "Geolocation is not supported by your browser",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSharing(true);
-    watchId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        updateUserLocation(latitude, longitude);
-      },
-      (error) => {
-        toast({
-          title: "Location Error",
-          description: error.message,
-          variant: "destructive"
-        });
-        setIsSharing(false);
-      }
-    );
-
-    toast({
-      title: "Location Sharing",
-      description: "You are now sharing your location",
-    });
-  };
-
-  const stopSharingLocation = () => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-    }
-    setIsSharing(false);
-    toast({
-      title: "Location Sharing Stopped",
-      description: "You have stopped sharing your location",
     });
   };
 
@@ -184,9 +120,6 @@ export const Map = () => {
       .subscribe();
 
     return () => {
-      if (watchId.current !== null) {
-        navigator.geolocation.clearWatch(watchId.current);
-      }
       supabase.removeChannel(channel);
       Object.values(markers.current).forEach(marker => marker.remove());
       if (mapInstance.current) {
