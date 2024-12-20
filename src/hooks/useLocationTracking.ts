@@ -61,6 +61,11 @@ export const useLocationTracking = ({ userId, onLocationUpdate }: UseLocationTra
           variant: "destructive"
         });
         setIsSharing(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
       }
     );
 
