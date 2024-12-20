@@ -28,7 +28,13 @@ export const Map = () => {
   const session = useSession();
   
   const { isSharing, startSharingLocation, stopSharingLocation } = useLocationTracking({
-    userId: session?.user?.id
+    userId: session?.user?.id,
+    onLocationUpdate: (lat, lng) => {
+      // When we get a new location, update the map view
+      if (mapInstance.current) {
+        mapInstance.current.setView([lat, lng], 15);
+      }
+    }
   });
 
   const createPulsingIcon = () => {

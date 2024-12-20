@@ -4,9 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UseLocationTrackingProps {
   userId?: string;
+  onLocationUpdate?: (lat: number, lng: number) => void;
 }
 
-export const useLocationTracking = ({ userId }: UseLocationTrackingProps) => {
+export const useLocationTracking = ({ userId, onLocationUpdate }: UseLocationTrackingProps) => {
   const [isSharing, setIsSharing] = useState(false);
   const watchId = useRef<number | null>(null);
   const { toast } = useToast();
@@ -24,6 +25,9 @@ export const useLocationTracking = ({ userId }: UseLocationTrackingProps) => {
         });
 
       if (error) throw error;
+      
+      // Notify parent component of location update
+      onLocationUpdate?.(lat, lng);
     } catch (error) {
       console.error('Error updating location:', error);
       toast({
