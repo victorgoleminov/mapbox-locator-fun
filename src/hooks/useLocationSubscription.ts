@@ -20,7 +20,8 @@ export const useLocationSubscription = () => {
       
       if (!error && data) {
         const locations = data.map(row => {
-          const match = row.location.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
+          const locationStr = row.location as string;
+          const match = locationStr.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
           if (!match) return null;
           
           return {
@@ -51,7 +52,8 @@ export const useLocationSubscription = () => {
           if (!payload.new || !payload.new.location) return;
           
           // Extract coordinates from PostGIS point
-          const match = payload.new.location.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
+          const locationStr = payload.new.location as string;
+          const match = locationStr.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
           if (!match) return;
           
           const lng = parseFloat(match[1]);
