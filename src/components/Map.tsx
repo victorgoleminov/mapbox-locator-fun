@@ -5,6 +5,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Share2 } from 'lucide-react';
 import LocationCard from './LocationCard';
+import { supabase } from '@/integrations/supabase/client';
+import { useSession } from '@/App';
 
 interface UserLocation {
   id: string;
@@ -23,9 +25,7 @@ export const Map = () => {
   const [loading, setLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const watchId = useRef<number | null>(null);
-
-  // Generate a random user ID
-  const userId = useRef<string>(Math.random().toString(36).substring(7));
+  const session = useSession();
 
   const createPulsingIcon = () => {
     return L.divIcon({
@@ -41,22 +41,27 @@ export const Map = () => {
     });
   };
 
-  const updateUserLocation = (location: UserLocation) => {
-    setUserLocations(prev => {
-      const filtered = prev.filter(loc => loc.id !== location.id);
-      return [...filtered, location];
-    });
-  };
+  const updateUserLocation = async (lat: number, lng: number) => {
+    if (!session?.user?.id) return;
 
-  const broadcastLocation = (lat: number, lng: number) => {
-    const location: UserLocation = {
-      id: userId.current,
-      lat,
-      lng,
-      timestamp: Date.now()
-    };
-    setMyLocation(location);
-    updateUserLocation(location);
+    try {
+      const { error } = await supabase
+        .from('user_locations')
+        .upsert({
+          user_id: session.user.id,
+          location: `POINT(${lng} ${lat})`,
+          last_updated: new Date().toISOString()
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating location:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update location",
+        variant: "destructive"
+      });
+    }
   };
 
   const startSharingLocation = () => {
@@ -73,7 +78,7 @@ export const Map = () => {
     watchId.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        broadcastLocation(latitude, longitude);
+        updateUserLocation(latitude, longitude);
       },
       (error) => {
         toast({
@@ -138,16 +143,56 @@ export const Map = () => {
       );
     }
 
+    // Subscribe to real-time location updates
+    const channel = supabase
+      .channel('user_locations')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_locations'
+        },
+        (payload: any) => {
+          if (!payload.new || !payload.new.location) return;
+          
+          // Extract coordinates from PostGIS point
+          const match = payload.new.location.match(/POINT\(([-\d.]+) ([-\d.]+)\)/);
+          if (!match) return;
+          
+          const lng = parseFloat(match[1]);
+          const lat = parseFloat(match[2]);
+          
+          const location: UserLocation = {
+            id: payload.new.user_id,
+            lat,
+            lng,
+            timestamp: new Date(payload.new.last_updated).getTime()
+          };
+
+          if (payload.new.user_id === session?.user?.id) {
+            setMyLocation(location);
+          }
+
+          setUserLocations(prev => {
+            const filtered = prev.filter(loc => loc.id !== location.id);
+            return [...filtered, location];
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       if (watchId.current !== null) {
         navigator.geolocation.clearWatch(watchId.current);
       }
+      supabase.removeChannel(channel);
       Object.values(markers.current).forEach(marker => marker.remove());
       if (mapInstance.current) {
         mapInstance.current.remove();
       }
     };
-  }, [toast]);
+  }, [toast, session?.user?.id]);
 
   // Update markers when user locations change
   useEffect(() => {
@@ -164,11 +209,13 @@ export const Map = () => {
           icon: createPulsingIcon()
         }).addTo(mapInstance.current);
 
-        marker.bindPopup(`User ${location.id}`);
+        const timeAgo = Math.round((Date.now() - location.timestamp) / 1000 / 60);
+        marker.bindPopup(`User ${location.id === session?.user?.id ? '(You)' : location.id.slice(0, 8)}
+          <br>Last updated: ${timeAgo} minutes ago`);
         markers.current[location.id] = marker;
       }
     });
-  }, [userLocations]);
+  }, [userLocations, session?.user?.id]);
 
   return (
     <div className="relative w-full h-screen">
