@@ -7,6 +7,7 @@ import { Share2 } from 'lucide-react';
 import LocationCard from './LocationCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/App';
+import { UserLocationsList } from './UserLocationsList';
 
 interface UserLocation {
   id: string;
@@ -237,6 +238,12 @@ export const Map = () => {
           loading={loading}
         />
       )}
+      <UserLocationsList
+        locations={userLocations}
+        currentUserId={session?.user?.id}
+        isSharing={isSharing}
+        onStopSharing={stopSharingLocation}
+      />
     </div>
   );
 };
