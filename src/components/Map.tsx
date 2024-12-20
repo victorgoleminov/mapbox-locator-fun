@@ -13,7 +13,7 @@ interface UserLocation {
   timestamp: number;
 }
 
-const Map = () => {
+export const Map = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markers = useRef<{ [key: string]: L.Marker }>({});
@@ -193,5 +193,3 @@ const Map = () => {
     </div>
   );
 };
-
-export default Map;
