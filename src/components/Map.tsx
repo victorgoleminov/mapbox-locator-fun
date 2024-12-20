@@ -72,6 +72,19 @@ export const Map = () => {
           const { latitude, longitude } = position.coords;
           if (mapInstance.current) {
             mapInstance.current.setView([latitude, longitude], 15);
+            
+            // Add initial marker for user's location
+            const marker = L.marker([latitude, longitude], {
+              icon: createPulsingIcon()
+            }).addTo(mapInstance.current);
+            
+            markers.current['current_location'] = marker;
+            setMyLocation({
+              id: session?.user?.id || 'current',
+              lat: latitude,
+              lng: longitude,
+              timestamp: Date.now()
+            });
           }
           setLoading(false);
         },
